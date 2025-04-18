@@ -12,12 +12,16 @@ kind: cluster cilium
 	@echo "KIND cluster with Cilium and Hubble installed and configured!"
 
 cluster:
-	kind create cluster --name $(KIND_CLUSTER_NAME) --config kind-config.yaml
+	kind get clusters | grep ${KIND_CLUSTER_NAME} || kind create cluster --name $(KIND_CLUSTER_NAME) --config kind-config.yaml
 
 # Install Cilium via Helm with Hubble enabled.
 cilium:
 	@echo "Adding Cilium Helm repository..."
-	helm repo add cilium https://helm.cilium.io/
+	@if ! helm repo list | grep -q 'cilium'; then \
+		helm repo add cilium https://helm.cilium.io/; \
+	else \
+		echo "Cilium repo already exists, skipping..."; \
+	fi
 	helm repo update
 	@echo "Installing Cilium with Hubble and metrics enabled..."
 	helm install cilium cilium/cilium --version $(CILIUM_VERSION) --namespace $(NAMESPACE) \
@@ -29,6 +33,9 @@ cilium:
 	  --set hubble.metrics.enabled[3]=flow
 	@echo "Waiting for Cilium pods to be ready..."
 	kubectl -n $(NAMESPACE) wait --for=condition=ready pod -l k8s-app=cilium --timeout=90s
+
+pod:
+	kubectl run bubba-pod --image armory/debugging-tools:latest --restart=Never
 
 observe:
 	@echo "Observing TCP connections..."
